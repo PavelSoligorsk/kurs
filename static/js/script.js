@@ -1,6 +1,6 @@
 // static/js/script.js - исправленная версия
 
-const API_BASE = 'http://localhost:8000/api';
+const API_BASE = 'https://kurs-production-19b6.up.railway.app/api';
 let userToken = localStorage.getItem('userToken');
 let userRole = localStorage.getItem('userRole');
 
