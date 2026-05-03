@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Barrier Live Parking</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <!-- Модальное окно авторизации -->
+    <div id="authModal" class="modal">
+        <div class="modal-content">
+            <h2>🚗 Barrier Live Parking</h2>
+            <div class="subtitle">Добро пожаловать!</div>
+            
+            <div class="tabs">
+                <button class="tab-btn active" onclick="switchAuthTab('login')">Вход</button>
+                <button class="tab-btn" onclick="switchAuthTab('register')">Регистрация</button>
+            </div>
+            
+            <!-- Форма входа -->
+            <div id="loginContainer" class="form-container active">
+                <form id="authLoginForm">
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="text" id="authEmail" required placeholder="user@example.com">
+                    </div>
+                    <div class="form-group">
+                        <label>Пароль</label>
+                        <input type="password" id="authPassword" required placeholder="••••••">
+                    </div>
+                    <button type="submit">Войти</button>
+                </form>
+                <div id="authLoginResponse" class="response"></div>
+            </div>
+            
+            <!-- Форма регистрации -->
+            <div id="registerContainer" class="form-container">
+                <form id="authTicketForm">
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" id="regEmail" required placeholder="user@example.com">
+                    </div>
+                    <div class="form-group">
+                        <label>Номер авто (1111 AA-1)</label>
+                        <input type="text" id="regCar" required placeholder="1234 AB-5">
+                    </div>
+                    <div class="form-group">
+                        <label>Номер паспорта</label>
+                        <input type="text" id="regPassport" required placeholder="AB1234567">
+                    </div>
+                    <div class="form-group">
+                        <label>Пароль</label>
+                        <input type="password" id="regPassword" required minlength="6" placeholder="минимум 6 символов">
+                    </div>
+                    <button type="submit">Отправить заявку</button>
+                </form>
+                <div id="authTicketResponse" class="response"></div>
+            </div>
+            
+            <div class="info-text">
+                👑 Админ: admin / admin123
+            </div>
+        </div>
+    </div>
+    
+    <!-- Основной интерфейс -->
+    <div id="mainApp" class="main-app">
+        <div class="status-bar">
+            <div class="free-spots">
+                🅿️ Свободно: <span id="freeSpots">-</span> / 12
+            </div>
+            <div id="userInfoPanel" class="user-info">
+                <span id="userRoleBadge"></span>
+                <span id="userNameDisplay"></span>
+                <button id="logoutBtn" class="logout-btn" onclick="logout()">🚪 Выйти</button>
+            </div>
+        </div>
+        
+        <!-- Пользовательский интерфейс -->
+        <div id="userInterface" class="hidden">
+            <div class="grid">
+                <div class="card">
+                    <h2>🚪 Управление шлагбаумом</h2>
+                    <div class="gate-buttons">
+                        <button class="enter-btn" onclick="gateEnter()">🚗 ВЪЕЗД</button>
+                        <button class="exit-btn" onclick="gateExit()">🚗 ВЫЕЗД</button>
+                    </div>
+                    <div id="gateResponse" class="response"></div>
+                    <div id="carStatus" style="margin-top: 15px; padding: 10px; background: #e3f2fd; border-radius: 5px;"></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Админский интерфейс -->
+        <div id="adminInterface" class="hidden">
+            <div class="grid">
+                <div class="card">
+                    <h2>📋 Управление заявками</h2>
+                    <button onclick="loadPendingTickets()" style="margin-bottom: 15px;">🔄 Обновить заявки</button>
+                    <div id="adminTicketsList" class="ticket-list">
+                        <p style="text-align: center; color: #666;">Загрузка заявок...</p>
+                    </div>
+                </div>
+                <div class="card">
+                    <h2>👥 Управление пользователями</h2>
+                    <button onclick="loadAllUsers()" style="margin-bottom: 15px;">🔄 Загрузить всех пользователей</button>
+                    <div id="usersList" class="users-table"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="/static/js/script.js"></script>
+</body>
+</html>
