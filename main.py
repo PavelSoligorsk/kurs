@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends, status, Cookie, Cookie, Header
+from fastapi import FastAPI, HTTPException, Depends, status, Cookie, Cookie, Header, UploadFile, Form, File
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
@@ -10,6 +10,15 @@ import hashlib
 import secrets
 from datetime import datetime, timedelta
 import os
+import logging  # ← ДОБАВИТЬ ЭТОТ ИМПОРТ
+# Настройка логгера
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)  # ← СОЗДАТЬ ЛОГГЕР
+
+from utils.number_plate_recognizer import plate_recognizer  # ← исправлено: импортируем экземпляр, а не функцию
 
 app = FastAPI(title="Barrier Live Parking API")
 
@@ -72,7 +81,6 @@ def create_session(user_email: str, user_role: str = "user") -> str:
     }
     return token
 
-# ЗАМЕНИТЕ функцию get_current_user на эту:
 def get_current_user(authorization: Optional[str] = Header(None)):
     """Получение пользователя из заголовка Authorization: Bearer <token>"""
     if not authorization:
@@ -95,7 +103,6 @@ def get_current_user(authorization: Optional[str] = Header(None)):
     
     return session
 
-# Также добавьте альтернативную функцию для получения пользователя из cookie (для обратной совместимости)
 def get_current_user_from_cookie(token: Optional[str] = Cookie(None)):
     """Получение пользователя из Cookie (альтернативный метод)"""
     if not token:
@@ -192,6 +199,8 @@ def create_tables():
     conn.commit()
     cursor.close()
     conn.close()
+
+
 
 create_tables()
 
@@ -350,6 +359,272 @@ def create_ticket(request: TicketRequest):
     conn.close()
     
     return {"message": "Заявка отправлена на подтверждение", "ticket_id": ticket_id}
+
+@app.post("/api/camera/process-plate")
+async def process_plate_from_camera(
+    image: UploadFile = File(...),
+    camera_id: str = Form(default="main_gate"),
+    direction: str = Form(default="auto"),  # auto, enter, exit
+    fast_mode: bool = Form(default=True)  # быстрый режим
+):
+    """
+    Принимает изображение с камеры, распознает номер,
+    проверяет права доступа и возвращает решение.
+    
+    Возвращает:
+    - approved: true/false - разрешен ли проезд
+    - confidence: 0.0-1.0 - уверенность распознавания
+    - action: open_gate_enter / open_gate_exit / deny / manual_check
+    - message: текстовое сообщение
+    """
+    start_time = datetime.now()
+    
+    try:
+        # Читаем изображение
+        contents = await image.read()
+        
+        # Сохраняем изображение только в debug режиме
+        debug_mode = os.getenv("DEBUG_MODE", "false").lower() == "true"
+        if debug_mode:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
+            os.makedirs("captures", exist_ok=True)
+            capture_filename = f"captures/{camera_id}_{direction}_{timestamp}.jpg"
+            with open(capture_filename, "wb") as f:
+                f.write(contents)
+        
+        # Распознаем номер с оптимизированным распознавателем
+        plate_number, confidence = await plate_recognizer.recognize_plate(
+            contents
+        )
+        
+        # Логируем результат
+        logger.info(f"Recognition result: plate='{plate_number}', confidence={confidence:.2f}, time={datetime.now() - start_time}")
+        
+        # Если номер не распознан
+        if not plate_number or confidence < 0.5:
+            return {
+                "approved": False,
+                "confidence": confidence or 0.0,
+                "plate_number": None,
+                "action": "manual_check",
+                "message": "Номер не распознан. Требуется ручная проверка.",
+                "timestamp": datetime.now().isoformat(),
+                "processing_time_ms": (datetime.now() - start_time).total_seconds() * 1000
+            }
+        
+        # Ищем пользователя по номеру машины (поддерживаем оба формата)
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Пробуем найти номер в разных форматах
+        normalized_plate = plate_number.replace("-", " ").replace("BY-", "")
+        cursor.execute(
+            """SELECT id, email, car_number, is_inside, is_blocked, blocked_until 
+               FROM users WHERE car_number = ? OR car_number = ?""",
+            (plate_number, normalized_plate)
+        )
+        user = cursor.fetchone()
+        
+        # Номер не зарегистрирован
+        if not user:
+            cursor.close()
+            conn.close()
+            return {
+                "approved": False,
+                "confidence": confidence,
+                "plate_number": plate_number,
+                "action": "deny",
+                "message": f"Номер {plate_number} не зарегистрирован в системе.",
+                "timestamp": datetime.now().isoformat(),
+                "processing_time_ms": (datetime.now() - start_time).total_seconds() * 1000
+            }
+        
+        # Проверяем блокировку
+        if user["is_blocked"] == 1:
+            if user["blocked_until"]:
+                blocked_until = datetime.fromisoformat(user["blocked_until"])
+                if datetime.now() > blocked_until:
+                    # Разблокируем, если время истекло
+                    cursor.execute(
+                        "UPDATE users SET is_blocked = 0, blocked_until = NULL WHERE id = ?",
+                        (user["id"],)
+                    )
+                    conn.commit()
+                else:
+                    cursor.close()
+                    conn.close()
+                    return {
+                        "approved": False,
+                        "confidence": confidence,
+                        "plate_number": plate_number,
+                        "action": "deny",
+                        "message": f"Пользователь заблокирован до {blocked_until.strftime('%d.%m.%Y %H:%M')}",
+                        "timestamp": datetime.now().isoformat(),
+                        "processing_time_ms": (datetime.now() - start_time).total_seconds() * 1000
+                    }
+            else:
+                cursor.close()
+                conn.close()
+                return {
+                    "approved": False,
+                    "confidence": confidence,
+                    "plate_number": plate_number,
+                    "action": "deny",
+                    "message": "Пользователь заблокирован.",
+                    "timestamp": datetime.now().isoformat(),
+                    "processing_time_ms": (datetime.now() - start_time).total_seconds() * 1000
+                }
+        
+        # Определяем направление движения
+        detected_direction = direction
+        if direction == "auto":
+            # Автоопределение: если машина внутри - выезд, снаружи - въезд
+            if user["is_inside"] == 1:
+                detected_direction = "exit"
+            else:
+                detected_direction = "enter"
+        
+        # Логика въезда
+        if detected_direction == "enter":
+            if user["is_inside"] == 1:
+                cursor.close()
+                conn.close()
+                return {
+                    "approved": False,
+                    "confidence": confidence,
+                    "plate_number": plate_number,
+                    "action": "deny",
+                    "message": f"Машина {plate_number} уже на парковке.",
+                    "timestamp": datetime.now().isoformat(),
+                    "processing_time_ms": (datetime.now() - start_time).total_seconds() * 1000
+                }
+            
+            # Проверяем свободные места
+            cursor.execute("SELECT free_count FROM parking_spots WHERE id = 1")
+            spots = cursor.fetchone()
+            
+            if spots["free_count"] <= 0:
+                cursor.close()
+                conn.close()
+                return {
+                    "approved": False,
+                    "confidence": confidence,
+                    "plate_number": plate_number,
+                    "action": "deny",
+                    "message": "Нет свободных мест.",
+                    "timestamp": datetime.now().isoformat(),
+                    "processing_time_ms": (datetime.now() - start_time).total_seconds() * 1000
+                }
+            
+            # Регистрируем въезд
+            cursor.execute("UPDATE users SET is_inside = 1 WHERE id = ?", (user["id"],))
+            cursor.execute(
+                """UPDATE parking_spots 
+                   SET free_count = free_count - 1, 
+                       occupied_count = occupied_count + 1 
+                   WHERE id = 1"""
+            )
+            
+            # Логируем событие въезда
+            log_entry = {
+                "timestamp": datetime.now().isoformat(),
+                "event": "entry",
+                "plate": plate_number,
+                "user_email": user["email"],
+                "confidence": confidence,
+                "camera_id": camera_id
+            }
+            
+            # Сохраняем лог в файл (опционально)
+            try:
+                import json
+                os.makedirs("logs", exist_ok=True)
+                with open("logs/gate_events.log", "a", encoding="utf-8") as log_file:
+                    log_file.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
+            except:
+                pass
+            
+            conn.commit()
+            cursor.close()
+            conn.close()
+            
+            return {
+                "approved": True,
+                "confidence": confidence,
+                "plate_number": plate_number,
+                "action": "open_gate_enter",
+                "message": f"Въезд разрешен. Добро пожаловать!",
+                "timestamp": datetime.now().isoformat(),
+                "processing_time_ms": (datetime.now() - start_time).total_seconds() * 1000
+            }
+        
+        # Логика выезда
+        elif detected_direction == "exit":
+            if user["is_inside"] == 0:
+                cursor.close()
+                conn.close()
+                return {
+                    "approved": False,
+                    "confidence": confidence,
+                    "plate_number": plate_number,
+                    "action": "deny",
+                    "message": f"Машина {plate_number} не на парковке.",
+                    "timestamp": datetime.now().isoformat(),
+                    "processing_time_ms": (datetime.now() - start_time).total_seconds() * 1000
+                }
+            
+            # Регистрируем выезд
+            cursor.execute("UPDATE users SET is_inside = 0 WHERE id = ?", (user["id"],))
+            cursor.execute(
+                """UPDATE parking_spots 
+                   SET free_count = free_count + 1, 
+                       occupied_count = occupied_count - 1 
+                   WHERE id = 1"""
+            )
+            
+            # Логируем событие выезда
+            log_entry = {
+                "timestamp": datetime.now().isoformat(),
+                "event": "exit",
+                "plate": plate_number,
+                "user_email": user["email"],
+                "confidence": confidence,
+                "camera_id": camera_id
+            }
+            
+            try:
+                import json
+                os.makedirs("logs", exist_ok=True)
+                with open("logs/gate_events.log", "a", encoding="utf-8") as log_file:
+                    log_file.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
+            except:
+                pass
+            
+            conn.commit()
+            cursor.close()
+            conn.close()
+            
+            return {
+                "approved": True,
+                "confidence": confidence,
+                "plate_number": plate_number,
+                "action": "open_gate_exit",
+                "message": f"Выезд разрешен. Счастливого пути!",
+                "timestamp": datetime.now().isoformat(),
+                "processing_time_ms": (datetime.now() - start_time).total_seconds() * 1000
+            }
+        
+    except Exception as e:
+        logger.error(f"Error processing plate: {e}", exc_info=True)
+        return {
+            "approved": False,
+            "confidence": 0.0,
+            "plate_number": None,
+            "action": "manual_check",
+            "message": f"Ошибка: {str(e)}",
+            "timestamp": datetime.now().isoformat(),
+            "processing_time_ms": (datetime.now() - start_time).total_seconds() * 1000
+        }
 
 # ==================== АДМИН ЭНДПОИНТЫ ====================
 def verify_admin(credentials: HTTPBasicCredentials = Depends(HTTPBasic())):
