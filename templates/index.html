@@ -81,9 +81,8 @@
         <div id="userInterface" class="hidden">
             <div class="grid">
                 <div class="card">
-                    <h2>🚪 Управление шлагбаумом</h2>
+                    <h2>🚪 Управление выездом</h2>
                     <div class="gate-buttons">
-                        <button class="enter-btn" onclick="gateEnter()">🚗 ВЪЕЗД</button>
                         <button class="exit-btn" onclick="gateExit()">🚗 ВЫЕЗД</button>
                     </div>
                     <div id="gateResponse" class="response"></div>
@@ -95,6 +94,14 @@
         <!-- Админский интерфейс -->
         <div id="adminInterface" class="hidden">
             <div class="grid">
+                <div class="card">
+                    <h2>🚪 Управление шлагбаумом</h2>
+                    <div class="gate-buttons">
+                        <button class="enter-btn" onclick="adminOpenGate()">🟢 ОТКРЫТЬ</button>
+                        <button class="exit-btn" onclick="adminCloseGate()">🔴 ЗАКРЫТЬ</button>
+                    </div>
+                    <div id="adminGateResponse" class="response"></div>
+                </div>
                 <div class="card">
                     <h2>📋 Управление заявками</h2>
                     <button onclick="loadPendingTickets()" style="margin-bottom: 15px;">🔄 Обновить заявки</button>

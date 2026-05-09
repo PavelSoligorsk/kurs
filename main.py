@@ -877,6 +877,26 @@ def admin_reset_password(user_id: int, new_password: str, _: bool = Depends(veri
     
     return {"message": f"Пароль для {user['email']} изменён на: {new_password}"}
 
+@app.post("/api/admin/gate/open")
+async def admin_open_gate(_: bool = Depends(verify_admin)):
+    """Админ вручную открывает шлагбаум"""
+    gate_result = await send_gate_command("main_gate", "open_exit")
+    
+    if gate_result:
+        return {"message": "Шлагбаум открыт администратором"}
+    else:
+        raise HTTPException(status_code=503, detail="Шлагбаум не отвечает")
+
+
+@app.post("/api/admin/gate/close")
+async def admin_close_gate(_: bool = Depends(verify_admin)):
+    """Админ вручную закрывает шлагбаум"""
+    gate_result = await send_gate_command("main_gate", "close")
+    
+    if gate_result:
+        return {"message": "Шлагбаум закрыт администратором"}
+    else:
+        raise HTTPException(status_code=503, detail="Шлагбаум не отвечает")
 
 # ==================== Отдача HTML ====================
 @app.get("/", response_class=HTMLResponse)

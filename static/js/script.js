@@ -454,6 +454,47 @@ function checkSavedSession() {
     }
 }
 
+// ==================== АДМИН: УПРАВЛЕНИЕ ШЛАГБАУМОМ ====================
+window.adminOpenGate = async () => {
+    const respDiv = document.getElementById('adminGateResponse');
+    respDiv.className = 'response show';
+    respDiv.innerHTML = '⏳ Открытие шлагбаума...';
+    
+    try {
+        const response = await fetch(`${API_BASE}/admin/gate/open`, {
+            method: 'POST',
+            headers: { 'Authorization': 'Basic ' + btoa('admin:admin123') }
+        });
+        
+        const data = await response.json();
+        respDiv.className = `response show ${response.ok ? 'success' : 'error'}`;
+        respDiv.innerHTML = response.ok ? `✅ ${data.message}` : `❌ ${data.detail}`;
+    } catch (error) {
+        respDiv.className = 'response show error';
+        respDiv.innerHTML = `❌ Ошибка: ${error.message}`;
+    }
+};
+
+window.adminCloseGate = async () => {
+    const respDiv = document.getElementById('adminGateResponse');
+    respDiv.className = 'response show';
+    respDiv.innerHTML = '⏳ Закрытие шлагбаума...';
+    
+    try {
+        const response = await fetch(`${API_BASE}/admin/gate/close`, {
+            method: 'POST',
+            headers: { 'Authorization': 'Basic ' + btoa('admin:admin123') }
+        });
+        
+        const data = await response.json();
+        respDiv.className = `response show ${response.ok ? 'success' : 'error'}`;
+        respDiv.innerHTML = response.ok ? `✅ ${data.message}` : `❌ ${data.detail}`;
+    } catch (error) {
+        respDiv.className = 'response show error';
+        respDiv.innerHTML = `❌ Ошибка: ${error.message}`;
+    }
+};
+
 // Инициализация
 updateFreeSpots();
 setInterval(updateFreeSpots, 5000);
