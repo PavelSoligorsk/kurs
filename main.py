@@ -560,59 +560,15 @@ async def process_plate_from_camera(
         
         # Логика выезда
         elif detected_direction == "exit":
-            if user["is_inside"] == 0:
-                cursor.close()
-                conn.close()
-                return {
+            return {
                     "approved": False,
                     "confidence": confidence,
                     "plate_number": plate_number,
                     "action": "deny",
-                    "message": f"Машина {plate_number} не на парковке.",
+                    "message": f"Машина {plate_number} на парковке. Въезд только по фото.",
                     "timestamp": datetime.now().isoformat(),
                     "processing_time_ms": (datetime.now() - start_time).total_seconds() * 1000
                 }
-            
-            # Регистрируем выезд
-            cursor.execute("UPDATE users SET is_inside = 0 WHERE id = ?", (user["id"],))
-            cursor.execute(
-                """UPDATE parking_spots 
-                   SET free_count = free_count + 1, 
-                       occupied_count = occupied_count - 1 
-                   WHERE id = 1"""
-            )
-            
-            # Логируем событие выезда
-            log_entry = {
-                "timestamp": datetime.now().isoformat(),
-                "event": "exit",
-                "plate": plate_number,
-                "user_email": user["email"],
-                "confidence": confidence,
-                "camera_id": camera_id
-            }
-            
-            try:
-                import json
-                os.makedirs("logs", exist_ok=True)
-                with open("logs/gate_events.log", "a", encoding="utf-8") as log_file:
-                    log_file.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
-            except:
-                pass
-            
-            conn.commit()
-            cursor.close()
-            conn.close()
-            
-            return {
-                "approved": True,
-                "confidence": confidence,
-                "plate_number": plate_number,
-                "action": "open_gate_exit",
-                "message": f"Выезд разрешен. Счастливого пути!",
-                "timestamp": datetime.now().isoformat(),
-                "processing_time_ms": (datetime.now() - start_time).total_seconds() * 1000
-            }
         
     except Exception as e:
         logger.error(f"Error processing plate: {e}", exc_info=True)
