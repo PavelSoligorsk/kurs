@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends, status, Cookie, Cookie, Header, UploadFile, Form, File
+from fastapi import FastAPI, HTTPException, Depends, status, Cookie, Cookie, Header, UploadFile, Form, File, WebSocket, WebSocketDisconnect
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
@@ -11,6 +11,11 @@ import secrets
 from datetime import datetime, timedelta
 import os
 import logging  # ← ДОБАВИТЬ ЭТОТ ИМПОРТ
+import asyncio
+import json
+import threading
+
+
 # Настройка логгера
 logging.basicConfig(
     level=logging.INFO,
@@ -29,6 +34,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+        expose_headers=["*"],  # ← Добавить эту строку
 )
 
 # Подключаем статические файлы
@@ -40,6 +46,9 @@ SESSION_EXPIRE_MINUTES = 60
 
 # Хранилище сессий
 sessions: Dict[str, dict] = {}
+# WebSocket соединения от шлагбаумов
+gate_connections: Dict[str, WebSocket] = {}
+gate_lock = threading.Lock()
 
 def get_db_connection():
     conn = sqlite3.connect(DB_PATH)
@@ -204,6 +213,99 @@ def create_tables():
 
 create_tables()
 
+@app.websocket("/ws/gate/{gate_id}")
+async def websocket_gate_endpoint(websocket: WebSocket, gate_id: str):
+    # Принимаем соединение от любого источника
+    await websocket.accept()  # Без проверки origin
+    
+    with gate_lock:
+        gate_connections[gate_id] = websocket
+    
+    logger.info(f"✅ Шлагбаум {gate_id} подключён через WebSocket")
+    
+    await websocket.send_json({"status": "connected", "gate_id": gate_id})
+    
+    try:
+        while True:
+            data = await websocket.receive_text()
+            msg = json.loads(data)
+            logger.info(f"📩 От шлагбаума {gate_id}: {msg}")
+    except WebSocketDisconnect:
+        logger.info(f"❌ Шлагбаум {gate_id} отключился")
+    except Exception as e:
+        logger.error(f"⚠️ Ошибка WebSocket: {e}")
+    finally:
+        with gate_lock:
+            gate_connections.pop(gate_id, None)
+
+async def send_gate_command(gate_id: str, command: str, params: dict = None) -> bool:
+    """Отправить команду на шлагбаум и дождаться подтверждения"""
+    with gate_lock:
+        ws = gate_connections.get(gate_id)
+    
+    if not ws:
+        logger.warning(f"⚠️ Шлагбаум {gate_id} не подключён")
+        return False
+    
+    try:
+        message = {"command": command}
+        if params:
+            message.update(params)
+        
+        await ws.send_json(message)
+        
+        # Ждём подтверждение
+        response = await asyncio.wait_for(ws.receive_text(), timeout=5.0)
+        response_data = json.loads(response)
+        
+        if response_data.get("status") == "ok":
+            logger.info(f"✅ Команда {command} выполнена на {gate_id}")
+            return True
+        else:
+            logger.error(f"❌ Ошибка выполнения {command}: {response_data}")
+            return False
+            
+    except asyncio.TimeoutError:
+        logger.error(f"⏱️ Таймаут ожидания ответа от {gate_id}")
+        return False
+    except Exception as e:
+        logger.error(f"⚠️ Ошибка отправки команды: {e}")
+        return False
+
+async def send_gate_command(gate_id: str, command: str, params: dict = None) -> bool:
+    """Отправить команду на шлагбаум и дождаться подтверждения"""
+    with gate_lock:
+        ws = gate_connections.get(gate_id)
+    
+    if not ws:
+        logger.warning(f"⚠️ Шлагбаум {gate_id} не подключён")
+        return False
+    
+    try:
+        message = {"command": command}
+        if params:
+            message.update(params)
+        
+        await ws.send_json(message)
+        
+        # Ждём подтверждение
+        response = await asyncio.wait_for(ws.receive_text(), timeout=5.0)
+        response_data = json.loads(response)
+        
+        if response_data.get("status") == "ok":
+            logger.info(f"✅ Команда {command} выполнена на {gate_id}")
+            return True
+        else:
+            logger.error(f"❌ Ошибка выполнения {command}: {response_data}")
+            return False
+            
+    except asyncio.TimeoutError:
+        logger.error(f"⏱️ Таймаут ожидания ответа от {gate_id}")
+        return False
+    except Exception as e:
+        logger.error(f"⚠️ Ошибка отправки команды: {e}")
+        return False
+
 # ==================== Эндпоинты ====================
 @app.get("/api/free-spots")
 def get_free_spots():
@@ -275,7 +377,7 @@ def get_me(current_user: dict = Depends(get_current_user)):
     }
 
 @app.post("/api/gate/enter")
-def gate_enter(current_user: dict = Depends(get_current_user)):
+async def gate_enter(current_user: dict = Depends(get_current_user)):
     check_user_blocked(current_user["email"])
     
     conn = get_db_connection()
@@ -301,13 +403,20 @@ def gate_enter(current_user: dict = Depends(get_current_user)):
     cursor.execute("UPDATE parking_spots SET free_count = free_count - 1, occupied_count = occupied_count + 1 WHERE id = 1")
     
     conn.commit()
+    
+    # Отправляем команду на открытие шлагбаума
+    gate_result = await send_gate_command("main_gate", "open_enter")
+    
     cursor.close()
     conn.close()
     
-    return {"message": "Шлагбаум открыт. Добро пожаловать на парковку!"}
-
+    if gate_result:
+        return {"message": "Шлагбаум открыт. Добро пожаловать на парковку!"}
+    else:
+        return {"message": "Шлагбаум не отвечает. Позовите администратора."}
+    
 @app.post("/api/gate/exit")
-def gate_exit(current_user: dict = Depends(get_current_user)):
+async def gate_exit(current_user: dict = Depends(get_current_user)):
     check_user_blocked(current_user["email"])
     
     conn = get_db_connection()
@@ -325,10 +434,17 @@ def gate_exit(current_user: dict = Depends(get_current_user)):
     cursor.execute("UPDATE parking_spots SET free_count = free_count + 1, occupied_count = occupied_count - 1 WHERE id = 1")
     
     conn.commit()
+    
+    # Отправляем команду на открытие шлагбаума
+    gate_result = await send_gate_command("main_gate", "open_exit")
+    
     cursor.close()
     conn.close()
     
-    return {"message": "Шлагбаум открыт. Счастливого пути!"}
+    if gate_result:
+        return {"message": "Шлагбаум открыт. Счастливого пути!"}
+    else:
+        return {"message": "Шлагбаум не отвечает. Позовите администратора."}
 
 @app.post("/api/request-ticket", status_code=201)
 def create_ticket(request: TicketRequest):
