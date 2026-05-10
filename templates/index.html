@@ -4,40 +4,433 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Barrier Live Parking</title>
-    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #f0f2f5;
+            min-height: 100vh;
+            color: #1a1a1a;
+        }
+
+        /* Модальные окна */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            backdrop-filter: blur(4px);
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 24px;
+            padding: 40px;
+            max-width: 420px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.08);
+            animation: modalIn 0.3s ease;
+        }
+
+        @keyframes modalIn {
+            from { opacity: 0; transform: translateY(20px) scale(0.95); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        .modal-content h2 {
+            font-size: 24px;
+            font-weight: 600;
+            color: #1a1a1a;
+            text-align: center;
+            margin-bottom: 8px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 32px;
+        }
+
+        .register-modal-content {
+            position: relative;
+        }
+
+        .close-modal {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            color: #999;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .close-modal:hover {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        /* Формы */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #444;
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        input {
+            width: 100%;
+            padding: 14px 16px;
+            border: 2px solid #e8e8e8;
+            border-radius: 16px;
+            font-size: 15px;
+            transition: all 0.2s;
+            background: #fafafa;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #1a1a1a;
+            background: white;
+        }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 14px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .primary-btn {
+            background: #1a1a1a;
+            color: white;
+        }
+
+        .primary-btn:hover {
+            background: #333;
+            transform: translateY(-1px);
+        }
+
+        .subtle-btn {
+            background: #f5f5f5;
+            color: #444;
+        }
+
+        .subtle-btn:hover {
+            background: #e8e8e8;
+        }
+
+        .response {
+            margin-top: 16px;
+            padding: 12px 16px;
+            border-radius: 12px;
+            font-size: 14px;
+            display: none;
+        }
+
+        .response.show { display: block; }
+        .response.success { background: #f0faf0; color: #2d5a27; }
+        .response.error { background: #fff0f0; color: #8b1a1a; }
+
+        .info-text {
+            text-align: center;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #f0f0f0;
+            font-size: 13px;
+            color: #999;
+        }
+
+        /* Основной интерфейс */
+        .main-app {
+            display: none;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .main-app.show { display: block; }
+
+        .status-bar {
+            background: white;
+            border-radius: 20px;
+            padding: 20px 24px;
+            margin-bottom: 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+        }
+
+        .free-spots {
+            background: #1a1a1a;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 14px;
+            font-weight: 600;
+            font-size: 15px;
+        }
+
+        .user-info {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+        }
+
+        .badge {
+            padding: 8px 16px;
+            border-radius: 12px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .admin-badge {
+            background: #1a1a1a;
+            color: white;
+        }
+
+        .user-badge {
+            background: #f0f0f0;
+            color: #444;
+        }
+
+        .logout-btn {
+            background: #fff;
+            color: #666;
+            border: 2px solid #e8e8e8;
+            padding: 10px 20px;
+            width: auto;
+        }
+
+        .logout-btn:hover {
+            border-color: #ccc;
+            color: #333;
+        }
+
+        /* Карточки */
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+            gap: 20px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 20px;
+            padding: 28px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+        }
+
+        .card h2 {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 24px;
+            color: #1a1a1a;
+        }
+
+        .gate-buttons {
+            display: flex;
+            gap: 12px;
+        }
+
+        .enter-btn {
+            background: #1a1a1a;
+            color: white;
+            flex: 1;
+        }
+
+        .enter-btn:hover {
+            background: #333;
+        }
+
+        .exit-btn {
+            background: #fff;
+            color: #1a1a1a;
+            border: 2px solid #e8e8e8;
+            flex: 1;
+        }
+
+        .exit-btn:hover {
+            border-color: #1a1a1a;
+        }
+
+        .secondary-btn {
+            background: #f5f5f5;
+            color: #444;
+            margin-bottom: 16px;
+        }
+
+        .secondary-btn:hover {
+            background: #e8e8e8;
+        }
+
+        .ticket-item {
+            background: #fafafa;
+            border-radius: 14px;
+            padding: 16px;
+            margin-bottom: 12px;
+        }
+
+        .ticket-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .approve-btn {
+            background: #1a1a1a;
+            color: white;
+            flex: 1;
+        }
+
+        .approve-btn:hover {
+            background: #333;
+        }
+
+        .reject-btn {
+            background: #f5f5f5;
+            color: #666;
+            flex: 1;
+        }
+
+        .reject-btn:hover {
+            background: #e8e8e8;
+            color: #444;
+        }
+
+        .users-table {
+            overflow-x: auto;
+        }
+
+        .users-table table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .users-table th {
+            background: #fafafa;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 13px;
+            color: #666;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .users-table td {
+            padding: 12px;
+            border-bottom: 1px solid #f5f5f5;
+            font-size: 14px;
+        }
+
+        .users-table tr:hover {
+            background: #fafafa;
+        }
+
+        .status-active {
+            background: #f0faf0;
+            color: #2d5a27;
+            padding: 4px 10px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .status-blocked {
+            background: #fff0f0;
+            color: #8b1a1a;
+            padding: 4px 10px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .action-buttons button {
+            padding: 6px 12px;
+            font-size: 12px;
+            border-radius: 8px;
+            width: auto;
+        }
+
+        .hidden { display: none; }
+
+        @media (max-width: 768px) {
+            .modal-content {
+                padding: 28px;
+            }
+            .grid {
+                grid-template-columns: 1fr;
+            }
+            .status-bar {
+                flex-direction: column;
+                gap: 16px;
+            }
+        }
+    </style>
 </head>
 <body>
     <!-- Модальное окно авторизации -->
     <div id="authModal" class="modal">
         <div class="modal-content">
-            <h2>🚗 Barrier Live Parking</h2>
-            <div class="subtitle">Добро пожаловать!</div>
+            <h2>Barrier Live Parking</h2>
+            <div class="subtitle">Войдите в систему</div>
             
-            <!-- Форма входа (только вход) -->
-            <div id="loginContainer" class="form-container active">
-                <form id="authLoginForm">
-                    <div class="form-group">
-                        <label>Email</label>
-                        <input type="text" id="authEmail" required placeholder="user@example.com">
-                    </div>
-                    <div class="form-group">
-                        <label>Пароль</label>
-                        <input type="password" id="authPassword" required placeholder="••••••">
-                    </div>
-                    <button type="submit" class="primary-btn">Войти</button>
-                </form>
-                <div id="authLoginResponse" class="response"></div>
-            </div>
+            <form id="authLoginForm">
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="text" id="authEmail" required placeholder="user@example.com">
+                </div>
+                <div class="form-group">
+                    <label>Пароль</label>
+                    <input type="password" id="authPassword" required placeholder="••••••">
+                </div>
+                <button type="submit" class="primary-btn">Войти</button>
+            </form>
+            <div id="authLoginResponse" class="response"></div>
             
-            <!-- Кнопка открытия регистрации -->
             <div style="text-align: center; margin-top: 20px;">
-                <button type="button" onclick="openRegisterModal()" style="background: none; border: none; color: #667eea; cursor: pointer; font-size: 13px; width: auto; padding: 5px 10px;">
-                    📝 Нет аккаунта? Подать заявку
+                <button type="button" onclick="openRegisterModal()" style="background: none; border: none; color: #666; cursor: pointer; font-size: 14px; width: auto; padding: 8px 16px;">
+                    Нет аккаунта? Подать заявку
                 </button>
             </div>
             
             <div class="info-text">
-                👑 Админ: admin / admin123
+                Админ: admin / admin123
             </div>
         </div>
     </div>
@@ -46,7 +439,7 @@
     <div id="registerModal" class="modal register-modal hidden">
         <div class="modal-content register-modal-content">
             <button class="close-modal" onclick="closeRegisterModal()">✕</button>
-            <h3>📝 Оставить заявку на регистрацию</h3>
+            <h3>Заявка на регистрацию</h3>
             
             <form id="authTicketForm">
                 <div class="form-group">
@@ -54,7 +447,7 @@
                     <input type="email" id="regEmail" required placeholder="user@example.com">
                 </div>
                 <div class="form-group">
-                    <label>Номер авто (1111 AA-1)</label>
+                    <label>Номер авто</label>
                     <input type="text" id="regCar" required placeholder="1234 AB-5">
                 </div>
                 <div class="form-group">
@@ -69,9 +462,8 @@
             </form>
             <div id="authTicketResponse" class="response"></div>
             
-            <!-- Ссылка назад ко входу -->
             <div style="text-align: center; margin-top: 20px;">
-                <button type="button" onclick="closeRegisterModal()" style="background: none; border: none; color: #999; cursor: pointer; font-size: 12px; width: auto;">
+                <button type="button" onclick="closeRegisterModal()" style="background: none; border: none; color: #999; cursor: pointer; font-size: 13px; width: auto;">
                     ← Вернуться ко входу
                 </button>
             </div>
@@ -82,12 +474,12 @@
     <div id="mainApp" class="main-app">
         <div class="status-bar">
             <div class="free-spots">
-                🅿️ Свободно: <span id="freeSpots">-</span> / 12
+                Свободно: <span id="freeSpots">-</span> / 12
             </div>
             <div id="userInfoPanel" class="user-info">
                 <span id="userRoleBadge"></span>
                 <span id="userNameDisplay"></span>
-                <button id="logoutBtn" class="logout-btn" onclick="logout()">🚪 Выйти</button>
+                <button id="logoutBtn" class="logout-btn" onclick="logout()">Выйти</button>
             </div>
         </div>
         
@@ -95,12 +487,12 @@
         <div id="userInterface" class="hidden">
             <div class="grid">
                 <div class="card">
-                    <h2>🚪 Управление выездом</h2>
+                    <h2>Управление выездом</h2>
                     <div class="gate-buttons">
-                        <button class="exit-btn" onclick="gateExit()">🚗 ВЫЕЗД</button>
+                        <button class="exit-btn" onclick="gateExit()">Выезд с парковки</button>
                     </div>
                     <div id="gateResponse" class="response"></div>
-                    <div id="carStatus" style="margin-top: 15px; padding: 10px; background: #e3f2fd; border-radius: 5px;"></div>
+                    <div id="carStatus" style="margin-top: 20px; padding: 16px; background: #fafafa; border-radius: 12px;"></div>
                 </div>
             </div>
         </div>
@@ -109,29 +501,537 @@
         <div id="adminInterface" class="hidden">
             <div class="grid">
                 <div class="card">
-                    <h2>🚪 Управление шлагбаумом</h2>
+                    <h2>Управление шлагбаумом</h2>
                     <div class="gate-buttons">
-                        <button class="enter-btn" onclick="adminOpenGate()">🟢 ОТКРЫТЬ</button>
-                        <button class="exit-btn" onclick="adminCloseGate()">🔴 ЗАКРЫТЬ</button>
+                        <button class="enter-btn" onclick="adminOpenGate()">Открыть</button>
+                        <button class="exit-btn" onclick="adminCloseGate()">Закрыть</button>
                     </div>
                     <div id="adminGateResponse" class="response"></div>
                 </div>
                 <div class="card">
-                    <h2>📋 Управление заявками</h2>
-                    <button onclick="loadPendingTickets()" class="secondary-btn">🔄 Обновить заявки</button>
+                    <h2>Заявки на регистрацию</h2>
+                    <button onclick="loadPendingTickets()" class="secondary-btn">Обновить заявки</button>
                     <div id="adminTicketsList" class="ticket-list">
-                        <p style="text-align: center; color: #666;">Загрузка заявок...</p>
+                        <p style="text-align: center; color: #666;">Загрузка...</p>
                     </div>
                 </div>
-                <div class="card">
-                    <h2>👥 Управление пользователями</h2>
-                    <button onclick="loadAllUsers()" class="secondary-btn">🔄 Загрузить всех пользователей</button>
-                    <div id="usersList" class="users-table"></div>
-                </div>
+                <div class="card" style="grid-column: 1 / -1;">
+    <h2>Пользователи</h2>
+    <button onclick="loadAllUsers()" class="secondary-btn">Обновить список</button>
+    <div id="usersList" class="users-table"></div>
+</div>
             </div>
         </div>
     </div>
     
-    <script src="/static/js/script.js"></script>
+    <script>
+        const API_BASE = 'https://kurs-production-19b6.up.railway.app/api';
+        let userToken = localStorage.getItem('userToken');
+        let userRole = localStorage.getItem('userRole');
+
+        function setCookie(name, value, days) {
+            const expires = new Date();
+            expires.setTime(expires.getTime() + (days * 24 * 60 * 60 * 1000));
+            document.cookie = `${name}=${value};expires=${expires.toUTCString()};path=/`;
+        }
+
+        function deleteCookie(name) {
+            document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+        }
+
+        async function authFetch(url, options = {}) {
+            const token = localStorage.getItem('userToken');
+            const headers = {
+                'Content-Type': 'application/json',
+                ...options.headers
+            };
+            
+            if (token && token !== 'admin_token') {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
+            
+            const response = await fetch(url, {
+                ...options,
+                headers: headers,
+                credentials: 'include'
+            });
+            
+            if (response.status === 401) {
+                logout();
+            }
+            
+            return response;
+        }
+
+        function showMainApp() {
+            document.getElementById('authModal').style.display = 'none';
+            document.getElementById('mainApp').classList.add('show');
+            
+            if (userRole === 'admin') {
+                document.getElementById('userInterface').classList.add('hidden');
+                document.getElementById('adminInterface').classList.remove('hidden');
+                document.getElementById('userRoleBadge').innerHTML = '<span class="badge admin-badge">Администратор</span>';
+                document.getElementById('userNameDisplay').innerHTML = 'admin';
+                loadPendingTickets();
+                loadAllUsers();
+            } else {
+                document.getElementById('userInterface').classList.remove('hidden');
+                document.getElementById('adminInterface').classList.add('hidden');
+                document.getElementById('userRoleBadge').innerHTML = '<span class="badge user-badge">Пользователь</span>';
+                getUserInfo();
+            }
+        }
+
+        document.getElementById('authLoginForm')?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const responseDiv = document.getElementById('authLoginResponse');
+            responseDiv.className = 'response show';
+            responseDiv.innerHTML = 'Проверка...';
+            
+            const email = document.getElementById('authEmail').value;
+            const password = document.getElementById('authPassword').value;
+            
+            if (email === 'admin' && password === 'admin123') {
+                userRole = 'admin';
+                userToken = 'admin_token';
+                localStorage.setItem('userRole', 'admin');
+                localStorage.setItem('userToken', 'admin_token');
+                responseDiv.className = 'response show success';
+                responseDiv.innerHTML = 'Добро пожаловать!';
+                setTimeout(() => { showMainApp(); updateFreeSpots(); }, 1000);
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                
+                const data = await response.json();
+                if (response.ok) {
+                    userRole = 'user';
+                    userToken = data.token;
+                    localStorage.setItem('userRole', 'user');
+                    localStorage.setItem('userToken', userToken);
+                    setCookie('token', userToken, 1);
+                    responseDiv.className = 'response show success';
+                    responseDiv.innerHTML = 'Вход выполнен!';
+                    setTimeout(() => { showMainApp(); updateFreeSpots(); }, 1000);
+                } else {
+                    responseDiv.className = 'response show error';
+                    responseDiv.innerHTML = data.detail || 'Ошибка входа';
+                }
+            } catch (error) {
+                responseDiv.className = 'response show error';
+                responseDiv.innerHTML = 'Ошибка соединения';
+            }
+        });
+
+        document.getElementById('authTicketForm')?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const responseDiv = document.getElementById('authTicketResponse');
+            responseDiv.className = 'response show';
+            responseDiv.innerHTML = 'Отправка...';
+            
+            const data = {
+                email: document.getElementById('regEmail').value,
+                "Номер автономии": document.getElementById('regCar').value,
+                "Номер паспорта": document.getElementById('regPassport').value,
+                password: document.getElementById('regPassword').value
+            };
+            
+            try {
+                const response = await fetch(`${API_BASE}/request-ticket`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                if (response.ok) {
+                    responseDiv.className = 'response show success';
+                    responseDiv.innerHTML = `Заявка отправлена. ID: ${result.ticket_id}. Ожидайте подтверждения.`;
+                    document.getElementById('authTicketForm').reset();
+                } else {
+                    responseDiv.className = 'response show error';
+                    responseDiv.innerHTML = result.detail || 'Ошибка отправки';
+                }
+            } catch (error) {
+                responseDiv.className = 'response show error';
+                responseDiv.innerHTML = 'Ошибка соединения';
+            }
+        });
+
+        async function getUserInfo() {
+            if (!userToken || userRole !== 'user') return;
+            
+            try {
+                const response = await authFetch(`${API_BASE}/me`, { method: 'GET' });
+                
+                if (response.ok) {
+                    const user = await response.json();
+                    document.getElementById('userNameDisplay').innerHTML = `${user.email}`;
+                    document.getElementById('carStatus').innerHTML = user.is_inside ? 
+                        'Ваш автомобиль находится на парковке' : 
+                        'Ваш автомобиль не на парковке';
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        window.gateExit = async () => {
+            const responseDiv = document.getElementById('gateResponse');
+            responseDiv.className = 'response show';
+            responseDiv.innerHTML = 'Открытие...';
+            
+            try {
+                const response = await authFetch(`${API_BASE}/gate/exit`, { method: 'POST' });
+                const result = await response.json();
+                responseDiv.className = `response show ${response.ok ? 'success' : 'error'}`;
+                responseDiv.innerHTML = response.ok ? result.message : (result.detail || 'Ошибка');
+                if (response.ok) { updateFreeSpots(); getUserInfo(); }
+            } catch (error) {
+                responseDiv.className = 'response show error';
+                responseDiv.innerHTML = 'Ошибка соединения';
+            }
+        };
+
+        window.loadPendingTickets = async () => {
+            const ticketsDiv = document.getElementById('adminTicketsList');
+            ticketsDiv.innerHTML = '<div style="text-align: center;">Загрузка...</div>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/admin/pending-tickets`, {
+                    headers: { 'Authorization': 'Basic ' + btoa('admin:admin123') }
+                });
+                
+                if (!response.ok) throw new Error('Ошибка загрузки');
+                
+                const tickets = await response.json();
+                
+                if (tickets.length === 0) {
+                    ticketsDiv.innerHTML = '<div style="text-align: center; padding: 20px; color: #666;">Нет заявок</div>';
+                    return;
+                }
+                
+                ticketsDiv.innerHTML = '';
+                tickets.forEach(ticket => {
+                    const div = document.createElement('div');
+                    div.className = 'ticket-item';
+                    div.innerHTML = `
+                        <p><strong>Email:</strong> ${ticket.email}</p>
+                        <p><strong>Авто:</strong> ${ticket.car_number}</p>
+                        <p><strong>Паспорт:</strong> ${ticket.passport_number}</p>
+                        <p style="color: #999; font-size: 13px;">${ticket.created_at}</p>
+                        <div class="ticket-actions">
+                            <button class="approve-btn" onclick="approveTicketAndReload(${ticket.id})">Одобрить</button>
+                    <button class="reject-btn" onclick="rejectTicketAndReload(${ticket.id})">Отклонить</button>
+                        </div>
+                    `;
+                    ticketsDiv.appendChild(div);
+                });
+            } catch (error) {
+                ticketsDiv.innerHTML = '<div class="response show error">Ошибка загрузки</div>';
+            }
+        };
+
+        window.approveTicketAndReload = async (ticketId) => {
+    try {
+        const response = await fetch(`${API_BASE}/admin/approve-ticket/${ticketId}`, {
+            method: 'POST',
+            headers: { 'Authorization': 'Basic ' + btoa('admin:admin123') }
+        });
+        
+        if (response.ok) {
+            document.body.style.transition = 'opacity 0.15s ease';
+            document.body.style.opacity = '0';
+            setTimeout(() => {
+                window.location.reload();
+            }, 150);
+        } else {
+            const result = await response.json();
+            alert(result.detail || 'Ошибка');
+        }
+    } catch (error) { 
+        alert('Ошибка соединения'); 
+    }
+};
+
+// Отклонить заявку и перезагрузить
+window.rejectTicketAndReload = async (ticketId) => {
+    try {
+        const response = await fetch(`${API_BASE}/admin/reject-ticket/${ticketId}`, {
+            method: 'POST',
+            headers: { 'Authorization': 'Basic ' + btoa('admin:admin123') }
+        });
+        
+        if (response.ok) {
+            document.body.style.transition = 'opacity 0.15s ease';
+            document.body.style.opacity = '0';
+            setTimeout(() => {
+                window.location.reload();
+            }, 150);
+        } else {
+            const result = await response.json();
+            alert(result.detail || 'Ошибка');
+        }
+    } catch (error) { 
+        alert('Ошибка соединения'); 
+    }
+};
+
+        window.loadAllUsers = async () => {
+            const usersDiv = document.getElementById('usersList');
+            usersDiv.innerHTML = '<div style="text-align: center;">Загрузка...</div>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/admin/users`, {
+                    headers: { 'Authorization': 'Basic ' + btoa('admin:admin123') }
+                });
+                
+                if (!response.ok) throw new Error('Ошибка загрузки');
+                
+                const users = await response.json();
+                
+                if (users.length === 0) {
+                    usersDiv.innerHTML = '<div style="text-align: center; padding: 20px; color: #666;">Нет пользователей</div>';
+                    return;
+                }
+                
+                let html = `<table>
+                    <thead>
+                        <tr><th>ID</th><th>Email</th><th>Авто</th><th>Статус</th><th>На парковке</th><th>Действия</th></tr>
+                    </thead>
+                    <tbody>
+                `;
+                
+                users.forEach(user => {
+                    let statusBadge = user.is_blocked ? 
+                        '<span class="status-blocked">Заблокирован</span>' :
+                        '<span class="status-active">Активен</span>';
+                    
+                    let insideBadge = user.is_inside ? 
+                        '🚗 На парковке' : '🏠 Вне парковки';
+                    
+                    html += `
+                        <tr>
+                            <td>${user.id}</td>
+                            <td>${user.email}</td>
+                            <td>${user.car_number}</td>
+                            <td>${statusBadge}</td>
+                            <td>${insideBadge}</td>
+                            <td class="action-buttons">
+                                ${!user.is_blocked ? `<button onclick="blockUser(${user.id})">Блок</button>` : `<button onclick="unblockUser(${user.id})">Разблок</button>`}
+                                <button onclick="resetPassword(${user.id})">Сброс</button>
+                                ${!user.is_inside ? `<button onclick="deleteUser(${user.id})">Удалить</button>` : ''}
+                            </td>
+                        </tr>
+                    `;
+                });
+                
+                html += `</tbody></table>`;
+                usersDiv.innerHTML = html;
+            } catch (error) {
+                usersDiv.innerHTML = '<div class="response show error">Ошибка загрузки</div>';
+            }
+        };
+
+        window.approveTicket = async (ticketId) => {
+    try {
+        const response = await fetch(`${API_BASE}/admin/approve-ticket/${ticketId}`, {
+            method: 'POST',
+            headers: { 'Authorization': 'Basic ' + btoa('admin:admin123') }
+        });
+        const result = await response.json();
+        
+        if (response.ok) {
+            // Плавно скрываем и перезагружаем
+            document.body.style.transition = 'opacity 0.15s ease';
+            document.body.style.opacity = '0';
+            loadPendingTickets();
+        } else {
+            alert(result.detail || 'Ошибка');
+        }
+    } catch (error) { 
+        alert('Ошибка соединения'); 
+    }
+};
+
+window.rejectTicket = async (ticketId) => {
+    try {
+        const response = await fetch(`${API_BASE}/admin/reject-ticket/${ticketId}`, {
+            method: 'POST',
+            headers: { 'Authorization': 'Basic ' + btoa('admin:admin123') }
+        });
+        const result = await response.json();
+        
+        if (response.ok) {
+            // Плавно скрываем и перезагружаем
+            document.body.style.transition = 'opacity 0.15s ease';
+            document.body.style.opacity = '0';
+            loadPendingTickets();
+        } else {
+            alert(result.detail || 'Ошибка');
+        }
+    } catch (error) { 
+        alert('Ошибка соединения'); 
+    }
+};
+        window.blockUser = async (userId) => {
+            const days = prompt('На сколько дней заблокировать?', '7');
+            if (!days) return;
+            try {
+                const response = await fetch(`${API_BASE}/admin/block-user/${userId}?block_days=${days}`, {
+                    method: 'POST',
+                    headers: { 'Authorization': 'Basic ' + btoa('admin:admin123') }
+                });
+                const result = await response.json();
+                alert(response.ok ? result.message : (result.detail || 'Ошибка'));
+                if (response.ok) loadAllUsers();
+            } catch (error) { alert('Ошибка соединения'); }
+        };
+
+        window.unblockUser = async (userId) => {
+            try {
+                const response = await fetch(`${API_BASE}/admin/unblock-user/${userId}`, {
+                    method: 'POST',
+                    headers: { 'Authorization': 'Basic ' + btoa('admin:admin123') }
+                });
+                const result = await response.json();
+                alert(response.ok ? result.message : (result.detail || 'Ошибка'));
+                if (response.ok) loadAllUsers();
+            } catch (error) { alert('Ошибка соединения'); }
+        };
+
+        window.deleteUser = async (userId) => {
+            if (!confirm('Удалить пользователя?')) return;
+            try {
+                const response = await fetch(`${API_BASE}/admin/delete-user/${userId}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': 'Basic ' + btoa('admin:admin123') }
+                });
+                const result = await response.json();
+                alert(response.ok ? result.message : (result.detail || 'Ошибка'));
+                if (response.ok) { loadAllUsers(); updateFreeSpots(); }
+            } catch (error) { alert('Ошибка соединения'); }
+        };
+
+        window.resetPassword = async (userId) => {
+            const newPass = prompt('Новый пароль (мин. 6 символов)', 'newpass123');
+            if (!newPass || newPass.length < 6) { alert('Минимум 6 символов'); return; }
+            try {
+                const response = await fetch(`${API_BASE}/admin/reset-password/${userId}?new_password=${newPass}`, {
+                    method: 'POST',
+                    headers: { 'Authorization': 'Basic ' + btoa('admin:admin123') }
+                });
+                const result = await response.json();
+                alert(response.ok ? result.message : (result.detail || 'Ошибка'));
+            } catch (error) { alert('Ошибка соединения'); }
+        };
+
+        window.adminOpenGate = async () => {
+            const respDiv = document.getElementById('adminGateResponse');
+            respDiv.className = 'response show';
+            respDiv.innerHTML = 'Открытие...';
+            
+            try {
+                const response = await fetch(`${API_BASE}/admin/gate/open`, {
+                    method: 'POST',
+                    headers: { 'Authorization': 'Basic ' + btoa('admin:admin123') }
+                });
+                const data = await response.json();
+                respDiv.className = `response show ${response.ok ? 'success' : 'error'}`;
+                respDiv.innerHTML = response.ok ? data.message : (data.detail || 'Ошибка');
+            } catch (error) {
+                respDiv.className = 'response show error';
+                respDiv.innerHTML = 'Ошибка соединения';
+            }
+        };
+
+        window.adminCloseGate = async () => {
+            const respDiv = document.getElementById('adminGateResponse');
+            respDiv.className = 'response show';
+            respDiv.innerHTML = 'Закрытие...';
+            
+            try {
+                const response = await fetch(`${API_BASE}/admin/gate/close`, {
+                    method: 'POST',
+                    headers: { 'Authorization': 'Basic ' + btoa('admin:admin123') }
+                });
+                const data = await response.json();
+                respDiv.className = `response show ${response.ok ? 'success' : 'error'}`;
+                respDiv.innerHTML = response.ok ? data.message : (data.detail || 'Ошибка');
+            } catch (error) {
+                respDiv.className = 'response show error';
+                respDiv.innerHTML = 'Ошибка соединения';
+            }
+        };
+
+        window.logout = () => {
+            deleteCookie('token');
+            localStorage.clear();
+            userToken = null;
+            userRole = null;
+            document.getElementById('mainApp').classList.remove('show');
+            document.getElementById('authModal').style.display = 'flex';
+            document.getElementById('authLoginForm').reset();
+            document.getElementById('authTicketForm').reset();
+            ['authLoginResponse', 'authTicketResponse', 'gateResponse', 'adminGateResponse'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.className = 'response';
+            });
+        };
+
+        async function updateFreeSpots() {
+            try {
+                const response = await fetch(`${API_BASE}/free-spots`);
+                const data = await response.json();
+                document.getElementById('freeSpots').textContent = data.free_spots;
+            } catch (error) { console.error(error); }
+        }
+
+        function checkSavedSession() {
+            const savedRole = localStorage.getItem('userRole');
+            const savedToken = localStorage.getItem('userToken');
+            
+            if (savedRole && savedToken) {
+                userRole = savedRole;
+                userToken = savedToken;
+                if (savedRole === 'user') {
+                    setCookie('token', savedToken, 1);
+                }
+                showMainApp();
+                updateFreeSpots();
+            }
+        }
+
+        function openRegisterModal() {
+            document.getElementById('registerModal').classList.remove('hidden');
+        }
+
+        function closeRegisterModal() {
+            document.getElementById('registerModal').classList.add('hidden');
+            document.getElementById('authTicketForm').reset();
+            const responseDiv = document.getElementById('authTicketResponse');
+            responseDiv.classList.remove('show', 'success', 'error');
+            responseDiv.innerHTML = '';
+        }
+
+        window.onclick = function(event) {
+            const registerModal = document.getElementById('registerModal');
+            if (event.target === registerModal) {
+                closeRegisterModal();
+            }
+        };
+
+        updateFreeSpots();
+        setInterval(updateFreeSpots, 5000);
+        checkSavedSession();
+
+    </script>
+    
 </body>
 </html>
