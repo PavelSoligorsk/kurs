@@ -249,11 +249,7 @@ async def websocket_gate_endpoint(websocket: WebSocket, gate_id: str):
             gate_connections.pop(gate_id, None)
 
 async def send_gate_command(gate_id: str, command: str, params: dict = None) -> tuple[bool, dict | None]:
-    """Отправить команду на шлагбаум и дождаться подтверждения
-    
-    Returns:
-        tuple[bool, dict | None]: (успех, данные ответа)
-    """
+    """Отправить команду на шлагбаум НЕ дожидаясь ответа"""
     with gate_lock:
         ws = gate_connections.get(gate_id)
     
@@ -266,25 +262,13 @@ async def send_gate_command(gate_id: str, command: str, params: dict = None) -> 
         if params:
             message.update(params)
         
+        # ТОЛЬКО ОТПРАВЛЯЕМ, НЕ ЖДЁМ ОТВЕТ
         await ws.send_json(message)
         logger.info(f"📤 Отправлена команда {command} на {gate_id}")
         
-        # Ждём подтверждение
-        response = await asyncio.wait_for(ws.receive_text(), timeout=5.0)
-        response_data = json.loads(response)
-
-        print(f"📩 Ответ от шлагбаума: {response_data}")
+        # Сразу возвращаем успех (команда отправлена)
+        return True, {"status": "ok", "message": "Команда отправлена"}
         
-        if response_data.get("status") == "ok":
-            logger.info(f"✅ Команда {command} выполнена на {gate_id}")
-            return True, response_data
-        else:
-            logger.error(f"❌ Ошибка выполнения {command}: {response_data}")
-            return False, response_data
-            
-    except asyncio.TimeoutError:
-        logger.error(f"⏱️ Таймаут ожидания ответа от {gate_id}")
-        return False, {"status": "error", "message": "Timeout"}
     except Exception as e:
         logger.error(f"⚠️ Ошибка отправки команды: {e}")
         return False, {"status": "error", "message": str(e)}
