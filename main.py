@@ -639,8 +639,17 @@ async def user_exit_gate(current_user: dict = Depends(get_current_user)):
         success, response = await send_gate_command("main_gate", "open_exit")
         
         if success:
-            # Обновляем статус
+            # Обновляем статус пользователя
             cursor.execute("UPDATE users SET is_inside = 0 WHERE email = ?", (current_user["email"],))
+            
+            # Увеличиваем количество свободных мест на 1
+            cursor.execute("""
+                UPDATE parking_sports 
+                SET free_count = free_count + 1, 
+                    occupied_count = occupied_count - 1 
+                WHERE id = 1
+            """)
+            
             conn.commit()
             
             return {
