@@ -661,14 +661,11 @@ async def process_plate_from_camera(
 
 @app.post("/api/gate/exit")
 async def user_exit_gate(current_user: dict = Depends(get_current_user)):
-    """
-    Пользователь выезжает через шлагбаум
-    Требует авторизацию (JWT токен)
-    """
+    """Пользователь выезжает (открытие на 7 секунд)"""
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # Проверяем, находится ли пользователь внутри
+    # Проверяем статус пользователя
     cursor.execute("SELECT is_inside, is_blocked FROM users WHERE email = ?", (current_user["email"],))
     user = cursor.fetchone()
     
@@ -677,29 +674,27 @@ async def user_exit_gate(current_user: dict = Depends(get_current_user)):
         conn.close()
         raise HTTPException(status_code=404, detail="Пользователь не найден")
     
-    # Проверка на блокировку
     if user["is_blocked"]:
         cursor.close()
         conn.close()
         raise HTTPException(status_code=403, detail="Пользователь заблокирован")
     
-    # Проверка, находится ли машина внутри
     if not user["is_inside"]:
         cursor.close()
         conn.close()
         raise HTTPException(status_code=400, detail="Машина не находится на парковке")
     
-    # Открываем шлагбаум
-    gate_result = await send_gate_command("main_gate", "open_exit_user")
+    # Отправляем команду open_exit на Raspberry Pi (с автозакрытием 7 сек)
+    gate_result = await send_gate_command("main_gate", "open_exit")
     
     if gate_result:
-        # Обновляем статус пользователя
+        # Обновляем статус
         cursor.execute("UPDATE users SET is_inside = 0 WHERE email = ?", (current_user["email"],))
         conn.commit()
         cursor.close()
         conn.close()
         
-        return {"message": "Шлагбаум открыт, выезд разрешен"}
+        return {"message": "Шлагбаум открыт, выезд разрешен (7 секунд)"}
     else:
         cursor.close()
         conn.close()
@@ -926,14 +921,14 @@ def admin_reset_password(user_id: int, new_password: str, _: bool = Depends(veri
 
 @app.post("/api/admin/gate/open")
 async def admin_open_gate(_: bool = Depends(verify_admin)):
-    """Админ вручную открывает шлагбаум"""
-    gate_result = await send_gate_command("main_gate", "open_exit")
+    """Админ вручную открывает шлагбаум (БЕЗ автозакрытия)"""
+    # Отправляем команду open_exit_admin на Raspberry Pi
+    gate_result = await send_gate_command("main_gate", "open_exit_admin")
     
     if gate_result:
-        return {"message": "Шлагбаум открыт администратором"}
+        return {"message": "Шлагбаум открыт администратором (без автозакрытия)"}
     else:
         raise HTTPException(status_code=503, detail="Шлагбаум не отвечает")
-
 
 @app.post("/api/admin/gate/close")
 async def admin_close_gate(_: bool = Depends(verify_admin)):
