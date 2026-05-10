@@ -728,22 +728,6 @@ def admin_approve_ticket(ticket_id: int, _: bool = Depends(verify_admin)):
         cursor.execute("UPDATE tickets SET status = 'approved' WHERE id = ?", (ticket_id,))
         conn.commit()
         
-        # Отправляем email об одобрении
-        email_subject = "Заявка на регистрацию одобрена"
-        email_body = f"""Уважаемый пользователь!
-
-Ваша заявка на регистрацию №{ticket_id} была одобрена.
-
-Данные для входа:
-Email: {ticket["email"]}
-Номер автомобиля: {ticket["car_number"]}
-
-Теперь вы можете войти в систему и пользоваться парковкой.
-
-С уважением,
-Администрация парковки"""
-        
-        send_email(ticket["email"], email_subject, email_body)
         
     except sqlite3.IntegrityError:
         conn.rollback()
@@ -769,19 +753,6 @@ def admin_reject_ticket(ticket_id: int, _: bool = Depends(verify_admin)):
     # Отклоняем заявку
     cursor.execute("UPDATE tickets SET status = 'rejected' WHERE id = ? AND status = 'pending'", (ticket_id,))
     conn.commit()
-    
-    # Отправляем email об отклонении
-    email_subject = "Заявка на регистрацию отклонена"
-    email_body = f"""Уважаемый пользователь!
-
-К сожалению, ваша заявка на регистрацию №{ticket_id} была отклонена.
-
-Если вы считаете, что это ошибка, пожалуйста, свяжитесь с администрацией.
-
-С уважением,
-Администрация парковки"""
-    
-    send_email(ticket["email"], email_subject, email_body)
     
     cursor.close()
     conn.close()
