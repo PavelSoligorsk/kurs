@@ -191,26 +191,6 @@ async function getUserInfo() {
     }
 }
 
-window.gateEnter = async () => {
-    const responseDiv = document.getElementById('gateResponse');
-    responseDiv.className = 'response show';
-    responseDiv.innerHTML = '⏳ Открытие...';
-    
-    try {
-        const response = await authFetch(`${API_BASE}/gate/enter`, {
-            method: 'POST'
-        });
-        
-        const result = await response.json();
-        responseDiv.className = `response show ${response.ok ? 'success' : 'error'}`;
-        responseDiv.innerHTML = response.ok ? `✅ ${result.message}` : `❌ ${result.detail}`;
-        if (response.ok) { updateFreeSpots(); getUserInfo(); }
-    } catch (error) {
-        responseDiv.className = 'response show error';
-        responseDiv.innerHTML = `❌ Ошибка: ${error.message}`;
-    }
-};
-
 window.gateExit = async () => {
     const responseDiv = document.getElementById('gateResponse');
     responseDiv.className = 'response show';

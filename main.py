@@ -267,40 +267,8 @@ async def send_gate_command(gate_id: str, command: str, params: dict = None) -> 
         # Ждём подтверждение
         response = await asyncio.wait_for(ws.receive_text(), timeout=5.0)
         response_data = json.loads(response)
-        
-        if response_data.get("status") == "ok":
-            logger.info(f"✅ Команда {command} выполнена на {gate_id}")
-            return True
-        else:
-            logger.error(f"❌ Ошибка выполнения {command}: {response_data}")
-            return False
-            
-    except asyncio.TimeoutError:
-        logger.error(f"⏱️ Таймаут ожидания ответа от {gate_id}")
-        return False
-    except Exception as e:
-        logger.error(f"⚠️ Ошибка отправки команды: {e}")
-        return False
 
-async def send_gate_command(gate_id: str, command: str, params: dict = None) -> bool:
-    """Отправить команду на шлагбаум и дождаться подтверждения"""
-    with gate_lock:
-        ws = gate_connections.get(gate_id)
-    
-    if not ws:
-        logger.warning(f"⚠️ Шлагбаум {gate_id} не подключён")
-        return False
-    
-    try:
-        message = {"command": command}
-        if params:
-            message.update(params)
-        
-        await ws.send_json(message)
-        
-        # Ждём подтверждение
-        response = await asyncio.wait_for(ws.receive_text(), timeout=5.0)
-        response_data = json.loads(response)
+        print(response_data)
         
         if response_data.get("status") == "ok":
             logger.info(f"✅ Команда {command} выполнена на {gate_id}")
