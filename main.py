@@ -712,7 +712,7 @@ def admin_approve_ticket(ticket_id: int, _: bool = Depends(verify_admin)):
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    cursor.execute("SELECT * FROM tickets WHERE id = ? AND status = 'pending'", (ticket_id,))
+    cursor.execute("SELECT * FROM tickets WHERE id = ?", (ticket_id,))
     ticket = cursor.fetchone()
     if not ticket:
         raise HTTPException(status_code=404, detail="Заявка не найдена")
@@ -760,7 +760,7 @@ def admin_reject_ticket(ticket_id: int, _: bool = Depends(verify_admin)):
     cursor = conn.cursor()
     
     # Получаем данные заявки перед обновлением
-    cursor.execute("SELECT * FROM tickets WHERE id = ? AND status = 'pending'", (ticket_id,))
+    cursor.execute("SELECT * FROM tickets WHERE id = ?", (ticket_id,))
     ticket = cursor.fetchone()
     
     if not ticket:
