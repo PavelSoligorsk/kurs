@@ -639,16 +639,11 @@ async def user_exit_gate(current_user: dict = Depends(get_current_user)):
         success, response = await send_gate_command("main_gate", "open_exit")
         
         if success:
-            # Обновляем статус пользователя
+            # Обновляем статус пользователя (простой запрос в одну строку)
             cursor.execute("UPDATE users SET is_inside = 0 WHERE email = ?", (current_user["email"],))
             
-            # Увеличиваем количество свободных мест на 1
-            cursor.execute("""
-                UPDATE parking_sports 
-                SET free_count = free_count + 1, 
-                    occupied_count = occupied_count - 1 
-                WHERE id = 1
-            """)
+            # Обновляем количество мест (простой запрос в одну строку)
+            cursor.execute("UPDATE parking_spots SET free_count = free_count + 1, occupied_count = occupied_count - 1 WHERE id = 1")
             
             conn.commit()
             
@@ -666,6 +661,7 @@ async def user_exit_gate(current_user: dict = Depends(get_current_user)):
     finally:
         cursor.close()
         conn.close()
+
 # ==================== АДМИН ЭНДПОИНТЫ ====================
 def verify_admin(credentials: HTTPBasicCredentials = Depends(HTTPBasic())):
     conn = get_db_connection()
