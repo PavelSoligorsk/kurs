@@ -659,6 +659,52 @@ async def process_plate_from_camera(
             "processing_time_ms": (datetime.now() - start_time).total_seconds() * 1000
         }
 
+@app.post("/api/gate/exit")
+async def user_exit_gate(current_user: dict = Depends(get_current_user)):
+    """
+    Пользователь выезжает через шлагбаум
+    Требует авторизацию (JWT токен)
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Проверяем, находится ли пользователь внутри
+    cursor.execute("SELECT is_inside, is_blocked FROM users WHERE email = ?", (current_user["email"],))
+    user = cursor.fetchone()
+    
+    if not user:
+        cursor.close()
+        conn.close()
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
+    
+    # Проверка на блокировку
+    if user["is_blocked"]:
+        cursor.close()
+        conn.close()
+        raise HTTPException(status_code=403, detail="Пользователь заблокирован")
+    
+    # Проверка, находится ли машина внутри
+    if not user["is_inside"]:
+        cursor.close()
+        conn.close()
+        raise HTTPException(status_code=400, detail="Машина не находится на парковке")
+    
+    # Открываем шлагбаум
+    gate_result = await send_gate_command("main_gate", "open_exit_user")
+    
+    if gate_result:
+        # Обновляем статус пользователя
+        cursor.execute("UPDATE users SET is_inside = 0 WHERE email = ?", (current_user["email"],))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        return {"message": "Шлагбаум открыт, выезд разрешен"}
+    else:
+        cursor.close()
+        conn.close()
+        raise HTTPException(status_code=503, detail="Шлагбаум не отвечает")
+
 # ==================== АДМИН ЭНДПОИНТЫ ====================
 def verify_admin(credentials: HTTPBasicCredentials = Depends(HTTPBasic())):
     conn = get_db_connection()
