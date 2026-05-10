@@ -12,6 +12,7 @@ body {
     justify-content: center;
     align-items: center;
     padding: 20px;
+    position: relative;
 }
 
 /* Модальное окно авторизации */
@@ -62,35 +63,70 @@ body {
     font-size: 14px;
 }
 
-.tabs {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 30px;
-    border-bottom: 2px solid #e0e0e0;
+/* Плавающая кнопка регистрации в правом нижнем углу */
+.floating-register-btn {
+    position: fixed;
+    bottom: 25px;
+    right: 25px;
+    width: auto;
+    background: rgba(102, 126, 234, 0.85);
+    backdrop-filter: blur(10px);
+    color: white;
+    border: none;
+    padding: 10px 18px;
+    border-radius: 50px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    z-index: 999;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    transition: all 0.3s ease;
+    letter-spacing: 0.5px;
 }
 
-.tab-btn {
+.floating-register-btn:hover {
+    background: rgba(102, 126, 234, 1);
+    transform: translateY(-2px);
+    box-shadow: 0 5px 20px rgba(102,126,234,0.4);
+}
+
+/* Модальное окно регистрации */
+.register-modal {
+    z-index: 1100;
+}
+
+.register-modal-content {
+    max-width: 420px;
+    position: relative;
+}
+
+.register-modal-content h3 {
+    text-align: center;
+    color: #333;
+    margin-bottom: 25px;
+}
+
+.close-modal {
+    position: absolute;
+    top: 15px;
+    right: 20px;
     background: none;
     border: none;
-    padding: 10px 20px;
+    font-size: 24px;
     cursor: pointer;
-    font-size: 16px;
-    color: #666;
-    transition: all 0.3s;
+    color: #999;
     width: auto;
+    padding: 0;
+    margin: 0;
+    font-weight: normal;
 }
 
-.tab-btn.active {
-    color: #667eea;
-    border-bottom: 2px solid #667eea;
-    margin-bottom: -2px;
+.close-modal:hover {
+    color: #333;
+    transform: scale(1.1);
 }
 
 .form-container {
-    display: none;
-}
-
-.form-container.active {
     display: block;
 }
 
@@ -120,7 +156,7 @@ input:focus {
     box-shadow: 0 0 5px rgba(102,126,234,0.3);
 }
 
-button {
+.primary-btn {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
     border: none;
@@ -133,9 +169,28 @@ button {
     transition: transform 0.2s;
 }
 
-button:hover {
+.primary-btn:hover {
     transform: translateY(-2px);
     box-shadow: 0 5px 15px rgba(102,126,234,0.4);
+}
+
+.subtle-btn {
+    background: #f0f0f0;
+    color: #666;
+    border: none;
+    padding: 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    width: 100%;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.3s;
+}
+
+.subtle-btn:hover {
+    background: #e8e8e8;
+    color: #333;
+    transform: translateY(-1px);
 }
 
 .response {
@@ -193,6 +248,7 @@ button:hover {
     align-items: center;
     flex-wrap: wrap;
     gap: 15px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
 }
 
 .free-spots {
@@ -217,10 +273,24 @@ button:hover {
     color: white;
     cursor: pointer;
     width: auto;
+    font-size: 14px;
+}
+
+.logout-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 10px rgba(220,53,69,0.3);
 }
 
 .admin-badge {
     background: #ff6b6b;
+    padding: 5px 15px;
+    border-radius: 20px;
+    color: white;
+    font-size: 14px;
+}
+
+.user-badge {
+    background: #4ecdc4;
     padding: 5px 15px;
     border-radius: 20px;
     color: white;
@@ -235,9 +305,15 @@ button:hover {
 
 .card {
     background: white;
-    border-radius: 10px;
-    padding: 20px;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    border-radius: 15px;
+    padding: 25px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.15);
 }
 
 .card h2 {
@@ -249,15 +325,23 @@ button:hover {
 
 .gate-buttons {
     display: flex;
-    gap: 10px;
+    gap: 15px;
 }
 
 .enter-btn {
-    background: #28a745;
+    background: linear-gradient(135deg, #28a745, #20c997);
 }
 
 .exit-btn {
-    background: #dc3545;
+    background: linear-gradient(135deg, #dc3545, #c82333);
+}
+
+.secondary-btn {
+    background: #6c757d;
+}
+
+.secondary-btn:hover {
+    background: #5a6268;
 }
 
 .ticket-list, .users-table {
@@ -271,6 +355,12 @@ button:hover {
     border-radius: 8px;
     padding: 15px;
     margin-bottom: 10px;
+    transition: all 0.2s;
+}
+
+.ticket-item:hover {
+    background: #f1f3f5;
+    border-color: #adb5bd;
 }
 
 .ticket-item p {
@@ -293,15 +383,30 @@ button:hover {
     padding: 8px;
 }
 
+.users-table {
+    overflow-x: auto;
+}
+
 .users-table table {
     width: 100%;
     border-collapse: collapse;
 }
 
-.users-table th, .users-table td {
-    padding: 8px;
+.users-table th {
+    background: #667eea;
+    color: white;
+    padding: 10px;
+    text-align: left;
+}
+
+.users-table td {
+    padding: 10px;
     text-align: left;
     border-bottom: 1px solid #dee2e6;
+}
+
+.users-table tr:hover {
+    background: #f8f9fa;
 }
 
 .hidden {
@@ -316,4 +421,39 @@ button:hover {
     .grid {
         grid-template-columns: 1fr;
     }
+    .gate-buttons {
+        flex-direction: column;
+    }
+    .status-bar {
+        flex-direction: column;
+        text-align: center;
+    }
+    .user-info {
+        justify-content: center;
+    }
+    .floating-register-btn {
+        bottom: 15px;
+        right: 15px;
+        padding: 8px 15px;
+        font-size: 11px;
+    }
+}
+
+/* Убедитесь, что кнопка поверх всего */
+.floating-register-btn {
+    position: fixed;
+    bottom: 25px;
+    right: 25px;
+    z-index: 9999 !important;  /* Максимальный z-index */
+    pointer-events: auto !important; /* Принудительно включаем клики */
+}
+
+/* Модальное окно авторизации не должно перекрывать кнопку */
+.modal {
+    z-index: 1000; /* Меньше чем у кнопки */
+}
+
+/* Модальное окно регистрации */
+.register-modal {
+    z-index: 1100; /* Тоже меньше */
 }

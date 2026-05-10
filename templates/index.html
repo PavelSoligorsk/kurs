@@ -13,12 +13,7 @@
             <h2>🚗 Barrier Live Parking</h2>
             <div class="subtitle">Добро пожаловать!</div>
             
-            <div class="tabs">
-                <button class="tab-btn active" onclick="switchAuthTab('login')">Вход</button>
-                <button class="tab-btn" onclick="switchAuthTab('register')">Регистрация</button>
-            </div>
-            
-            <!-- Форма входа -->
+            <!-- Форма входа (только вход) -->
             <div id="loginContainer" class="form-container active">
                 <form id="authLoginForm">
                     <div class="form-group">
@@ -29,37 +24,56 @@
                         <label>Пароль</label>
                         <input type="password" id="authPassword" required placeholder="••••••">
                     </div>
-                    <button type="submit">Войти</button>
+                    <button type="submit" class="primary-btn">Войти</button>
                 </form>
                 <div id="authLoginResponse" class="response"></div>
             </div>
             
-            <!-- Форма регистрации -->
-            <div id="registerContainer" class="form-container">
-                <form id="authTicketForm">
-                    <div class="form-group">
-                        <label>Email</label>
-                        <input type="email" id="regEmail" required placeholder="user@example.com">
-                    </div>
-                    <div class="form-group">
-                        <label>Номер авто (1111 AA-1)</label>
-                        <input type="text" id="regCar" required placeholder="1234 AB-5">
-                    </div>
-                    <div class="form-group">
-                        <label>Номер паспорта</label>
-                        <input type="text" id="regPassport" required placeholder="AB1234567">
-                    </div>
-                    <div class="form-group">
-                        <label>Пароль</label>
-                        <input type="password" id="regPassword" required minlength="6" placeholder="минимум 6 символов">
-                    </div>
-                    <button type="submit">Отправить заявку</button>
-                </form>
-                <div id="authTicketResponse" class="response"></div>
+            <!-- Кнопка открытия регистрации -->
+            <div style="text-align: center; margin-top: 20px;">
+                <button type="button" onclick="openRegisterModal()" style="background: none; border: none; color: #667eea; cursor: pointer; font-size: 13px; width: auto; padding: 5px 10px;">
+                    📝 Нет аккаунта? Подать заявку
+                </button>
             </div>
             
             <div class="info-text">
                 👑 Админ: admin / admin123
+            </div>
+        </div>
+    </div>
+    
+    <!-- Модальное окно регистрации -->
+    <div id="registerModal" class="modal register-modal hidden">
+        <div class="modal-content register-modal-content">
+            <button class="close-modal" onclick="closeRegisterModal()">✕</button>
+            <h3>📝 Оставить заявку на регистрацию</h3>
+            
+            <form id="authTicketForm">
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="regEmail" required placeholder="user@example.com">
+                </div>
+                <div class="form-group">
+                    <label>Номер авто (1111 AA-1)</label>
+                    <input type="text" id="regCar" required placeholder="1234 AB-5">
+                </div>
+                <div class="form-group">
+                    <label>Номер паспорта</label>
+                    <input type="text" id="regPassport" required placeholder="AB1234567">
+                </div>
+                <div class="form-group">
+                    <label>Пароль</label>
+                    <input type="password" id="regPassword" required minlength="6" placeholder="минимум 6 символов">
+                </div>
+                <button type="submit" class="subtle-btn">Отправить заявку</button>
+            </form>
+            <div id="authTicketResponse" class="response"></div>
+            
+            <!-- Ссылка назад ко входу -->
+            <div style="text-align: center; margin-top: 20px;">
+                <button type="button" onclick="closeRegisterModal()" style="background: none; border: none; color: #999; cursor: pointer; font-size: 12px; width: auto;">
+                    ← Вернуться ко входу
+                </button>
             </div>
         </div>
     </div>
@@ -104,14 +118,14 @@
                 </div>
                 <div class="card">
                     <h2>📋 Управление заявками</h2>
-                    <button onclick="loadPendingTickets()" style="margin-bottom: 15px;">🔄 Обновить заявки</button>
+                    <button onclick="loadPendingTickets()" class="secondary-btn">🔄 Обновить заявки</button>
                     <div id="adminTicketsList" class="ticket-list">
                         <p style="text-align: center; color: #666;">Загрузка заявок...</p>
                     </div>
                 </div>
                 <div class="card">
                     <h2>👥 Управление пользователями</h2>
-                    <button onclick="loadAllUsers()" style="margin-bottom: 15px;">🔄 Загрузить всех пользователей</button>
+                    <button onclick="loadAllUsers()" class="secondary-btn">🔄 Загрузить всех пользователей</button>
                     <div id="usersList" class="users-table"></div>
                 </div>
             </div>

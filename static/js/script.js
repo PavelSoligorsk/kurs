@@ -475,6 +475,28 @@ window.adminCloseGate = async () => {
     }
 };
 
+// Функции для работы с модальным окном регистрации
+function openRegisterModal() {
+    document.getElementById('registerModal').classList.remove('hidden');
+}
+
+function closeRegisterModal() {
+    document.getElementById('registerModal').classList.add('hidden');
+    // Очищаем форму и ответ
+    document.getElementById('authTicketForm').reset();
+    const responseDiv = document.getElementById('authTicketResponse');
+    responseDiv.classList.remove('show', 'success', 'error');
+    responseDiv.innerHTML = '';
+}
+
+// Закрытие по клику вне модального окна
+window.onclick = function(event) {
+    const registerModal = document.getElementById('registerModal');
+    if (event.target === registerModal) {
+        closeRegisterModal();
+    }
+}
+
 // Инициализация
 updateFreeSpots();
 setInterval(updateFreeSpots, 5000);
