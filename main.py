@@ -248,14 +248,18 @@ async def websocket_gate_endpoint(websocket: WebSocket, gate_id: str):
         with gate_lock:
             gate_connections.pop(gate_id, None)
 
-async def send_gate_command(gate_id: str, command: str, params: dict = None) -> bool:
-    """Отправить команду на шлагбаум и дождаться подтверждения"""
+async def send_gate_command(gate_id: str, command: str, params: dict = None) -> tuple[bool, dict | None]:
+    """Отправить команду на шлагбаум и дождаться подтверждения
+    
+    Returns:
+        tuple[bool, dict | None]: (успех, данные ответа)
+    """
     with gate_lock:
         ws = gate_connections.get(gate_id)
     
     if not ws:
         logger.warning(f"⚠️ Шлагбаум {gate_id} не подключён")
-        return False
+        return False, None
     
     try:
         message = {"command": command}
@@ -263,27 +267,27 @@ async def send_gate_command(gate_id: str, command: str, params: dict = None) -> 
             message.update(params)
         
         await ws.send_json(message)
+        logger.info(f"📤 Отправлена команда {command} на {gate_id}")
         
         # Ждём подтверждение
         response = await asyncio.wait_for(ws.receive_text(), timeout=5.0)
         response_data = json.loads(response)
 
-        print(response_data)
+        print(f"📩 Ответ от шлагбаума: {response_data}")
         
         if response_data.get("status") == "ok":
             logger.info(f"✅ Команда {command} выполнена на {gate_id}")
-            return True
+            return True, response_data
         else:
             logger.error(f"❌ Ошибка выполнения {command}: {response_data}")
-            return False
+            return False, response_data
             
     except asyncio.TimeoutError:
         logger.error(f"⏱️ Таймаут ожидания ответа от {gate_id}")
-        return False
+        return False, {"status": "error", "message": "Timeout"}
     except Exception as e:
         logger.error(f"⚠️ Ошибка отправки команды: {e}")
-        return False
-
+        return False, {"status": "error", "message": str(e)}
 # ==================== Эндпоинты ====================
 @app.get("/api/free-spots")
 def get_free_spots():
@@ -633,41 +637,42 @@ async def user_exit_gate(current_user: dict = Depends(get_current_user)):
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # Проверяем статус пользователя
-    cursor.execute("SELECT is_inside, is_blocked FROM users WHERE email = ?", (current_user["email"],))
-    user = cursor.fetchone()
-    
-    if not user:
-        cursor.close()
-        conn.close()
-        raise HTTPException(status_code=404, detail="Пользователь не найден")
-    
-    if user["is_blocked"]:
-        cursor.close()
-        conn.close()
-        raise HTTPException(status_code=403, detail="Пользователь заблокирован")
-    
-    if not user["is_inside"]:
-        cursor.close()
-        conn.close()
-        raise HTTPException(status_code=400, detail="Машина не находится на парковке")
-    
-    # Отправляем команду open_exit на Raspberry Pi (с автозакрытием 7 сек)
-    gate_result = await send_gate_command("main_gate", "open_exit")
-    
-    if gate_result:
-        # Обновляем статус
-        cursor.execute("UPDATE users SET is_inside = 0 WHERE email = ?", (current_user["email"],))
-        conn.commit()
-        cursor.close()
-        conn.close()
+    try:
+        # Проверяем статус пользователя
+        cursor.execute("SELECT is_inside, is_blocked, car_number FROM users WHERE email = ?", (current_user["email"],))
+        user = cursor.fetchone()
         
-        return {"message": "Шлагбаум открыт, выезд разрешен (7 секунд)"}
-    else:
+        if not user:
+            raise HTTPException(status_code=404, detail="Пользователь не найден")
+        
+        if user["is_blocked"]:
+            raise HTTPException(status_code=403, detail="Пользователь заблокирован")
+        
+        if not user["is_inside"]:
+            raise HTTPException(status_code=400, detail="Машина не находится на парковке")
+        
+        # Отправляем команду open_exit на Raspberry Pi (с автозакрытием 7 сек)
+        success, response = await send_gate_command("main_gate", "open_exit")
+        
+        if success:
+            # Обновляем статус
+            cursor.execute("UPDATE users SET is_inside = 0 WHERE email = ?", (current_user["email"],))
+            conn.commit()
+            
+            return {
+                "message": "Шлагбаум открыт, выезд разрешен (7 секунд)",
+                "car_number": user["car_number"],
+                "gate_response": response
+            }
+        else:
+            raise HTTPException(
+                status_code=503, 
+                detail=response.get("message", "Шлагбаум не отвечает") if response else "Шлагбаум не отвечает"
+            )
+            
+    finally:
         cursor.close()
         conn.close()
-        raise HTTPException(status_code=503, detail="Шлагбаум не отвечает")
-
 # ==================== АДМИН ЭНДПОИНТЫ ====================
 def verify_admin(credentials: HTTPBasicCredentials = Depends(HTTPBasic())):
     conn = get_db_connection()
@@ -890,24 +895,34 @@ def admin_reset_password(user_id: int, new_password: str, _: bool = Depends(veri
 @app.post("/api/admin/gate/open")
 async def admin_open_gate(_: bool = Depends(verify_admin)):
     """Админ вручную открывает шлагбаум (БЕЗ автозакрытия)"""
-    # Отправляем команду open_exit_admin на Raspberry Pi
-    gate_result = await send_gate_command("main_gate", "open_exit_admin")
+    success, response = await send_gate_command("main_gate", "open_exit_admin")
     
-    if gate_result:
-        return {"message": "Шлагбаум открыт администратором (без автозакрытия)"}
+    if success:
+        return {
+            "message": "Шлагбаум открыт администратором (без автозакрытия)",
+            "gate_response": response  # Возвращаем ответ от шлагбаума
+        }
     else:
-        raise HTTPException(status_code=503, detail="Шлагбаум не отвечает")
+        raise HTTPException(
+            status_code=503, 
+            detail=response.get("message", "Шлагбаум не отвечает") if response else "Шлагбаум не отвечает"
+        )
 
 @app.post("/api/admin/gate/close")
 async def admin_close_gate(_: bool = Depends(verify_admin)):
     """Админ вручную закрывает шлагбаум"""
-    gate_result = await send_gate_command("main_gate", "close")
+    success, response = await send_gate_command("main_gate", "close")
     
-    if gate_result:
-        return {"message": "Шлагбаум закрыт администратором"}
+    if success:
+        return {
+            "message": "Шлагбаум закрыт администратором",
+            "gate_response": response
+        }
     else:
-        raise HTTPException(status_code=503, detail="Шлагбаум не отвечает")
-
+        raise HTTPException(
+            status_code=503, 
+            detail=response.get("message", "Шлагбаум не отвечает") if response else "Шлагбаум не отвечает"
+        )
 # ==================== Отдача HTML ====================
 @app.get("/", response_class=HTMLResponse)
 async def root():
