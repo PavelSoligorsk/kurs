@@ -14,7 +14,12 @@ import logging  # ← ДОБАВИТЬ ЭТОТ ИМПОРТ
 import asyncio
 import json
 import threading
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from dotenv import load_dotenv
 
+load_dotenv()
 
 # Настройка логгера
 logging.basicConfig(
@@ -24,6 +29,13 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)  # ← СОЗДАТЬ ЛОГГЕР
 
 from utils.number_plate_recognizer import plate_recognizer  # ← исправлено: импортируем экземпляр, а не функцию
+
+
+SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
+SMTP_PORT = int(os.getenv("SMTP_PORT", 587))
+SMTP_USERNAME = os.getenv("SMTP_USERNAME", "your-email@gmail.com")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "your-app-password")
+SENDER_EMAIL = os.getenv("SENDER_EMAIL", "noreply@parking.com")
 
 app = FastAPI(title="Barrier Live Parking API")
 
@@ -209,8 +221,6 @@ def create_tables():
     cursor.close()
     conn.close()
 
-
-
 create_tables()
 
 @app.websocket("/ws/gate/{gate_id}")
@@ -376,75 +386,26 @@ def get_me(current_user: dict = Depends(get_current_user)):
         "blocked_until": user["blocked_until"]
     }
 
-@app.post("/api/gate/enter")
-async def gate_enter(current_user: dict = Depends(get_current_user)):
-    check_user_blocked(current_user["email"])
-    
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    cursor.execute("SELECT is_inside FROM users WHERE email = ?", (current_user["email"],))
-    user = cursor.fetchone()
-    
-    if user["is_inside"] == 1:
-        cursor.close()
-        conn.close()
-        raise HTTPException(status_code=400, detail="Машина уже на парковке")
-    
-    cursor.execute("SELECT free_count FROM parking_spots WHERE id = 1")
-    spots = cursor.fetchone()
-    
-    if spots["free_count"] <= 0:
-        cursor.close()
-        conn.close()
-        raise HTTPException(status_code=400, detail="Нет свободных мест")
-    
-    cursor.execute("UPDATE users SET is_inside = 1 WHERE email = ?", (current_user["email"],))
-    cursor.execute("UPDATE parking_spots SET free_count = free_count - 1, occupied_count = occupied_count + 1 WHERE id = 1")
-    
-    conn.commit()
-    
-    # Отправляем команду на открытие шлагбаума
-    gate_result = await send_gate_command("main_gate", "open_enter")
-    
-    cursor.close()
-    conn.close()
-    
-    if gate_result:
-        return {"message": "Шлагбаум открыт. Добро пожаловать на парковку!"}
-    else:
-        return {"message": "Шлагбаум не отвечает. Позовите администратора."}
-    
-@app.post("/api/gate/exit")
-async def gate_exit(current_user: dict = Depends(get_current_user)):
-    check_user_blocked(current_user["email"])
-    
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    cursor.execute("SELECT is_inside FROM users WHERE email = ?", (current_user["email"],))
-    user = cursor.fetchone()
-    
-    if user["is_inside"] == 0:
-        cursor.close()
-        conn.close()
-        raise HTTPException(status_code=400, detail="Машина не на парковке")
-    
-    cursor.execute("UPDATE users SET is_inside = 0 WHERE email = ?", (current_user["email"],))
-    cursor.execute("UPDATE parking_spots SET free_count = free_count + 1, occupied_count = occupied_count - 1 WHERE id = 1")
-    
-    conn.commit()
-    
-    # Отправляем команду на открытие шлагбаума
-    gate_result = await send_gate_command("main_gate", "open_exit")
-    
-    cursor.close()
-    conn.close()
-    
-    if gate_result:
-        return {"message": "Шлагбаум открыт. Счастливого пути!"}
-    else:
-        return {"message": "Шлагбаум не отвечает. Позовите администратора."}
+def send_email(to_email: str, subject: str, body: str):
+    """Отправка email-уведомления"""
+    try:
+        msg = MIMEMultipart()
+        msg["From"] = SENDER_EMAIL
+        msg["To"] = to_email
+        msg["Subject"] = subject
+        msg.attach(MIMEText(body, "plain", "utf-8"))
+        
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+            server.starttls()
+            server.login(SMTP_USERNAME, SMTP_PASSWORD)
+            server.send_message(msg)
+            
+        print(f"Email отправлен на {to_email}")
+        return True
+    except Exception as e:
+        print(f"Ошибка отправки email: {e}")
+        # Не прерываем выполнение основной функции при ошибке отправки
+        return False
 
 @app.post("/api/request-ticket", status_code=201)
 def create_ticket(request: TicketRequest):
@@ -754,18 +715,39 @@ def admin_approve_ticket(ticket_id: int, _: bool = Depends(verify_admin)):
         raise HTTPException(status_code=404, detail="Заявка не найдена")
     
     try:
+        # Создаем пользователя
         cursor.execute("""
             INSERT INTO users (email, car_number, passport_number, password_hash, is_inside, is_blocked)
             VALUES (?, ?, ?, ?, 0, 0)
         """, (ticket["email"], ticket["car_number"], ticket["passport_number"], ticket["password_hash"]))
         
+        # Обновляем статус заявки
         cursor.execute("UPDATE tickets SET status = 'approved' WHERE id = ?", (ticket_id,))
         conn.commit()
+        
+        # Отправляем email об одобрении
+        email_subject = "Заявка на регистрацию одобрена"
+        email_body = f"""Уважаемый пользователь!
+
+Ваша заявка на регистрацию №{ticket_id} была одобрена.
+
+Данные для входа:
+Email: {ticket["email"]}
+Номер автомобиля: {ticket["car_number"]}
+
+Теперь вы можете войти в систему и пользоваться парковкой.
+
+С уважением,
+Администрация парковки"""
+        
+        send_email(ticket["email"], email_subject, email_body)
+        
     except sqlite3.IntegrityError:
+        conn.rollback()
         raise HTTPException(status_code=400, detail="Пользователь уже существует")
-    
-    cursor.close()
-    conn.close()
+    finally:
+        cursor.close()
+        conn.close()
     
     return {"message": f"Заявка {ticket_id} одобрена"}
 
@@ -774,11 +756,30 @@ def admin_reject_ticket(ticket_id: int, _: bool = Depends(verify_admin)):
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    cursor.execute("UPDATE tickets SET status = 'rejected' WHERE id = ? AND status = 'pending'", (ticket_id,))
-    if cursor.rowcount == 0:
+    # Получаем данные заявки перед обновлением
+    cursor.execute("SELECT * FROM tickets WHERE id = ? AND status = 'pending'", (ticket_id,))
+    ticket = cursor.fetchone()
+    
+    if not ticket:
         raise HTTPException(status_code=404, detail="Заявка не найдена")
     
+    # Отклоняем заявку
+    cursor.execute("UPDATE tickets SET status = 'rejected' WHERE id = ? AND status = 'pending'", (ticket_id,))
     conn.commit()
+    
+    # Отправляем email об отклонении
+    email_subject = "Заявка на регистрацию отклонена"
+    email_body = f"""Уважаемый пользователь!
+
+К сожалению, ваша заявка на регистрацию №{ticket_id} была отклонена.
+
+Если вы считаете, что это ошибка, пожалуйста, свяжитесь с администрацией.
+
+С уважением,
+Администрация парковки"""
+    
+    send_email(ticket["email"], email_subject, email_body)
+    
     cursor.close()
     conn.close()
     
