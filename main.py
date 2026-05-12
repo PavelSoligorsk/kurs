@@ -617,6 +617,7 @@ async def process_plate_from_camera(
 
 @app.post("/api/gate/exit")
 async def user_exit_gate(current_user: dict = Depends(get_current_user)):
+    success, response = await send_gate_command("main_gate", "open_enter")
     """Пользователь выезжает (открытие на 7 секунд)"""
     conn = get_db_connection()
     cursor = conn.cursor()
