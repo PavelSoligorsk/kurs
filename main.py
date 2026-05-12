@@ -511,6 +511,7 @@ async def process_plate_from_camera(
         # Определяем направление движения
         detected_direction = direction
         if direction == "auto":
+
             # Автоопределение: если машина внутри - выезд, снаружи - въезд
             if user["is_inside"] == 1:
                 detected_direction = "exit"
@@ -581,6 +582,9 @@ async def process_plate_from_camera(
             cursor.close()
             conn.close()
             
+            success, response = await send_gate_command("main_gate", "open_exit")
+
+
             return {
                 "approved": True,
                 "confidence": confidence,
